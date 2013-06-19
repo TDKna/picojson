@@ -62,7 +62,10 @@ namespace picojson {
   };
   
   struct null {};
-  
+
+  static const std::string INDENT_STRING = "  ";
+  static const std::string LINE_DELIMITER = "\r\n";
+
   class value {
   public:
     typedef std::vector<value> array;
