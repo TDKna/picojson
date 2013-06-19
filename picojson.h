@@ -101,9 +101,14 @@ namespace picojson {
     bool contains(const std::string& key) const;
     std::string to_str() const;
     template <typename Iter> void serialize(Iter os) const;
+    template <typename Iter> void serialize_formatted(Iter os, UINT indent_depth) const;
     std::string serialize() const;
+    std::string serialize_formatted() const;
   private:
     template <typename T> value(const T*); // intentionally defined to block implicit conversion of pointer to bool
+    template <typename Iter> void copy_repeat( const std::string& str, Iter oi, UINT count) const;
+    template <typename Iter> void indent(Iter oi, UINT indent_depth) const;
+    template <typename Iter> void new_line(Iter os) const;
   };
   
   typedef value::array array;
@@ -356,7 +361,80 @@ namespace picojson {
     serialize(std::back_inserter(s));
     return s;
   }
-  
+
+  template < typename Iter> void value::copy_repeat(const std::string& str, Iter oi, UINT count) const {
+    for (UINT i = 0; i < count; i++) {
+      copy(str, oi);
+    }
+  }
+
+  template < typename Iter> void value::indent(Iter oi, UINT indent_depth) const {
+    copy_repeat(INDENT_STRING, oi, indent_depth);
+  }
+
+  template < typename Iter> void value::new_line(Iter oi) const {
+    copy(LINE_DELIMITER, oi);
+  }
+
+  template < typename Iter> void value::serialize_formatted(Iter oi, UINT indent_depth) const {
+    switch (type_) {
+    case string_type:
+      serialize_str(*u_.string_, oi);
+      break;
+    case array_type: {
+      *oi++ = '[';
+      for (array ::const_iterator i = u_.array_->begin(); i != u_.array_->end(); ++i) {
+        if (i != u_.array_->begin()) {
+          *oi++ = ',';
+        }
+        new_line(oi);
+        indent(oi, indent_depth + 1);
+
+        i->serialize_formatted(oi, indent_depth + 1);
+       
+        const array ::const_iterator last_i = --(u_.array_->end());
+        if (i == last_i) {
+          new_line(oi);
+          indent(oi, indent_depth);
+        }
+      }
+      *oi++ = ']';
+      break;
+    }
+    case object_type: {
+      *oi++ = '{';
+      for (object::const_iterator i = u_.object_->begin(); i != u_.object_->end(); ++i) {
+        if (i != u_.object_->begin()) {
+          *oi++ = ',';
+        }
+        new_line(oi);
+        indent(oi, indent_depth + 1);
+
+        serialize_str(i->first, oi);
+        copy( ": ", oi);
+        i->second.serialize_formatted(oi, indent_depth + 1);
+
+        const object::const_iterator last_i = --(u_.object_->end());
+        if (i == last_i) {
+          new_line(oi);
+          indent(oi, indent_depth);
+        }
+      }
+      *oi++ = '}';
+      break;
+    }
+    default:
+      copy(to_str(), oi);
+      break;
+    }
+  }
+
+  inline std::string value::serialize_formatted() const {
+    std::string s;
+    serialize_formatted(std::back_inserter(s), 0);
+    return s;
+  }
+
   template <typename Iter> class input {
   protected:
     Iter cur_, end_;
